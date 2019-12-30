@@ -318,11 +318,13 @@ def read_sql(
         Modin Dataframe
     """
     _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
-    if kwargs.get("chunksize") is not None:
-        ErrorMessage.default_to_pandas("Parameters provided [chunksize]")
-        df_gen = pandas.read_sql(**kwargs)
-        return (DataFrame(query_compiler=BaseFactory.from_pandas(df)) for df in df_gen)
-    return DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
+    kwargs["chunksize"] = None
+    df = DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
+    if chunksize is not None:
+        num_chunks = len(df) // chunksize if len(df) % chunksize == 0 else len(df) // chunksize + 1
+        return (df.iloc[i * chunksize: (i + 1) * chunksize] for i in num_chunks)
+    else:
+        return df
 
 
 def read_fwf(
