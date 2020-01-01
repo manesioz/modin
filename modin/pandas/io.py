@@ -320,11 +320,20 @@ def read_sql(
     _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
     if kwargs.get("chunksize", None) is not None:
         kwargs["chunksize"] = None
-        df = DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
-        num_chunks = len(df) // chunksize if len(df) % chunksize == 0 else len(df) // chunksize + 1
-        return (df.iloc[i * chunksize: (i + 1) * chunksize] for i in num_chunks)
-    else:
-        return DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
+        def query_iterator():
+            offset = 0
+            while True:
+                kwargs["sql"] = "SELECT * FROM ({}) LIMIT {} OFFSET {}".format(sql, chunksize, offset)
+                offset += chunksize
+                df = DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
+                if df.empty:
+                    break
+                else:
+                    yield df
+
+        return query_iterator()
+    
+    return DataFrame(query_compiler=BaseFactory.read_sql(**kwargs))
 
 
 def read_fwf(
